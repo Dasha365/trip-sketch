@@ -1,28 +1,16 @@
-from fastapi import FastAPI
-from pydantic import BaseModel
+from sqlalchemy.orm import Session
+from fastapi import Depends, FastAPI, HTTPException
 
+from app import llm, schemas
+from app.crud import create_trip
+from app.db import Base, engine, get_db
 
 app = FastAPI(title="Trip Sketch API")
 
 
-class TripRequest(BaseModel):
-    destination: str
-    number_of_days: int
-    budget: str
-    interests: str
-    travel_style: str
-
-
-class DayPlan(BaseModel):
-    day: int
-    plan: str
-
-
-class TripResponse(BaseModel):
-    title: str
-    summary: str
-    days: list[DayPlan]
-    notes: str
+@app.on_event("startup")
+def on_startup() -> None:
+    Base.metadata.create_all(bind=engine)
 
 
 @app.get("/")
@@ -30,28 +18,23 @@ def read_root() -> dict[str, str]:
     return {"message": "Welcome to the Trip Sketch API"}
 
 
-@app.post("/generate-trip", response_model=TripResponse)
-def generate_trip(trip: TripRequest) -> TripResponse:
-    days = [
-        DayPlan(
-            day=day_number,
-            plan=(
-                f"Day {day_number} in {trip.destination}: enjoy a {trip.travel_style.lower()} "
-                f"experience focused on {trip.interests.lower()} with a {trip.budget.lower()} budget."
-            ),
-        )
-        for day_number in range(1, trip.number_of_days + 1)
-    ]
+@app.get("/health")
+def health_check() -> dict[str, str]:
+    return {"status": "ok"}
 
-    return TripResponse(
-        title=f"{trip.number_of_days}-Day Trip to {trip.destination}",
-        summary=(
-            f"This is a mock travel plan for {trip.destination} designed for a "
-            f"{trip.travel_style.lower()} trip with interests in {trip.interests.lower()}."
-        ),
-        days=days,
-        notes=(
-            "This is a sample response for now. Later, you can replace it with real trip "
-            "generation logic, database storage, or an LLM integration."
-        ),
-    )
+
+@app.post("/generate-trip", response_model=schemas.TripResponse)
+def generate_trip(
+    trip: schemas.TripRequest,
+    db: Session = Depends(get_db),
+) -> schemas.TripResponse:
+    try:
+        trip_response = llm.generate_trip_plan(trip)
+        create_trip(db, trip, trip_response)
+        return trip_response
+    except llm.LLMOutputError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except llm.LLMUpstreamError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except llm.LLMConfigError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
