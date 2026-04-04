@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trip Sketch</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <main class="container">
+        <h1>Trip Sketch</h1>
+        <p class="subtitle">Generate a simple travel plan for your next trip.</p>
+
+        <form id="trip-form" class="trip-form">
+            <label for="destination">Destination</label>
+            <input type="text" id="destination" name="destination" required>
+
+            <label for="number_of_days">Number of Days</label>
+            <input type="number" id="number_of_days" name="number_of_days" min="1" required>
+
+            <label for="budget">Budget</label>
+            <input type="text" id="budget" name="budget" placeholder="Budget, mid-range, luxury" required>
+
+            <label for="interests">Interests</label>
+            <input type="text" id="interests" name="interests" placeholder="Food, museums, nature" required>
+
+            <label for="travel_style">Travel Style</label>
+            <input type="text" id="travel_style" name="travel_style" placeholder="Relaxed, adventurous, cultural" required>
+
+            <button type="submit">Generate Trip</button>
+        </form>
+
+        <section id="result" class="result hidden">
+            <h2>Your Trip Plan</h2>
+            <div id="result-content"></div>
+        </section>
+    </main>
+
+    <script src="script.js"></script>
+</body>
+</html>
