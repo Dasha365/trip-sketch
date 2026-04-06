@@ -87,8 +87,82 @@ def _build_prompt(
         if regeneration_instruction and regeneration_instruction.strip()
         else ""
     )
+    original_trip = f"""
+Destination: {trip.destination}
+Number of days: {trip.number_of_days}
+Budget: {trip.budget}
+Interests: {trip.interests}
+Travel style: {trip.travel_style}
+Additional preferences: {additional_preferences or "None"}
+""".strip()
 
-    prompt = f"""
+    if regeneration_note:
+        prompt = f"""
+You are a travel planning assistant.
+
+Your task is to MODIFY an existing trip plan based on a user instruction.
+
+IMPORTANT RULES:
+- The regeneration instruction is the HIGHEST PRIORITY
+- You MUST strictly follow it
+- The new plan MUST clearly reflect the requested change
+- If the instruction conflicts with the original plan, IGNORE the original plan
+
+Original trip:
+{original_trip}
+
+User regeneration instruction:
+{regeneration_note}
+
+STRICT REQUIREMENTS:
+- If user asks to make it cheaper:
+  - remove expensive attractions
+  - avoid rooftop restaurants
+  - avoid premium experiences
+  - prefer free activities, ferries, parks, walking, street food
+
+- If user asks for less touristy:
+  - avoid famous landmarks
+  - avoid crowded places
+  - focus on local neighborhoods and hidden spots
+
+- If user asks for more relaxed:
+  - reduce number of activities per day
+  - shorten walking distances
+  - include breaks and rest time
+
+Output format:
+- title
+- summary
+- days (day-by-day plan)
+- notes
+
+Additionally:
+In the notes section, briefly explain how the plan was adjusted based on the instruction.
+
+Return JSON only with this structure:
+{{
+  "title": "string",
+  "summary": "string",
+  "days": [
+    {{
+      "day": 1,
+      "plan": "string"
+    }}
+  ],
+  "notes": "string"
+}}
+
+Rules:
+- Return JSON only. Do not add markdown, comments, or extra text.
+- Make sure the "days" list contains exactly {trip.number_of_days} items.
+- For each day, the "plan" string must be clearly organized with these sections in order:
+  Morning: ...
+  Afternoon: ...
+  Evening: ...
+""".strip()
+    else:
+        prompt = f"""
 Create a realistic travel itinerary as valid JSON.
 
 Trip details:
@@ -97,15 +171,7 @@ Trip details:
 - Budget: {trip.budget}
 - Interests: {trip.interests}
 - Travel style: {trip.travel_style}
-""".strip()
-
-    if additional_preferences:
-        prompt += f"\n- Additional preferences: {additional_preferences}"
-
-    if regeneration_note:
-        prompt += f"\n- Regeneration instruction: {regeneration_note}"
-
-    prompt += f"""
+- Additional preferences: {additional_preferences or "None"}
 
 Return JSON only with this structure:
 {{
@@ -136,7 +202,6 @@ Rules:
 - Mention a balanced mix of food, sightseeing, rest, and transport when appropriate.
 - Keep notes concise and helpful. Include practical tips, reservations, or packing advice only when useful.
 - If additional preferences are provided, treat them as user-specific wishes and reflect them where possible.
-- If a regeneration instruction is provided, treat it as a refinement request for a new version of the trip rather than repeating the old one exactly.
 """.strip()
 
     return prompt
