@@ -77,92 +77,20 @@ def _build_prompt(
     trip: TripRequest,
     regeneration_instruction: str | None = None,
 ) -> str:
+    if regeneration_instruction and regeneration_instruction.strip():
+        return _build_regeneration_prompt(trip, regeneration_instruction)
+
+    return _build_generation_prompt(trip)
+
+
+def _build_generation_prompt(trip: TripRequest) -> str:
     additional_preferences = (
         trip.additional_preferences.strip()
         if trip.additional_preferences and trip.additional_preferences.strip()
         else ""
     )
-    regeneration_note = (
-        regeneration_instruction.strip()
-        if regeneration_instruction and regeneration_instruction.strip()
-        else ""
-    )
-    original_trip = f"""
-Destination: {trip.destination}
-Number of days: {trip.number_of_days}
-Budget: {trip.budget}
-Interests: {trip.interests}
-Travel style: {trip.travel_style}
-Additional preferences: {additional_preferences or "None"}
-""".strip()
 
-    if regeneration_note:
-        prompt = f"""
-You are a travel planning assistant.
-
-Your task is to MODIFY an existing trip plan based on a user instruction.
-
-IMPORTANT RULES:
-- The regeneration instruction is the HIGHEST PRIORITY
-- You MUST strictly follow it
-- The new plan MUST clearly reflect the requested change
-- If the instruction conflicts with the original plan, IGNORE the original plan
-
-Original trip:
-{original_trip}
-
-User regeneration instruction:
-{regeneration_note}
-
-STRICT REQUIREMENTS:
-- If user asks to make it cheaper:
-  - remove expensive attractions
-  - avoid rooftop restaurants
-  - avoid premium experiences
-  - prefer free activities, ferries, parks, walking, street food
-
-- If user asks for less touristy:
-  - avoid famous landmarks
-  - avoid crowded places
-  - focus on local neighborhoods and hidden spots
-
-- If user asks for more relaxed:
-  - reduce number of activities per day
-  - shorten walking distances
-  - include breaks and rest time
-
-Output format:
-- title
-- summary
-- days (day-by-day plan)
-- notes
-
-Additionally:
-In the notes section, briefly explain how the plan was adjusted based on the instruction.
-
-Return JSON only with this structure:
-{{
-  "title": "string",
-  "summary": "string",
-  "days": [
-    {{
-      "day": 1,
-      "plan": "string"
-    }}
-  ],
-  "notes": "string"
-}}
-
-Rules:
-- Return JSON only. Do not add markdown, comments, or extra text.
-- Make sure the "days" list contains exactly {trip.number_of_days} items.
-- For each day, the "plan" string must be clearly organized with these sections in order:
-  Morning: ...
-  Afternoon: ...
-  Evening: ...
-""".strip()
-    else:
-        prompt = f"""
+    return f"""
 Create a realistic travel itinerary as valid JSON.
 
 Trip details:
@@ -204,7 +132,100 @@ Rules:
 - If additional preferences are provided, treat them as user-specific wishes and reflect them where possible.
 """.strip()
 
-    return prompt
+
+def _build_regeneration_prompt(
+    trip: TripRequest,
+    regeneration_instruction: str,
+) -> str:
+    additional_preferences = (
+        trip.additional_preferences.strip()
+        if trip.additional_preferences and trip.additional_preferences.strip()
+        else ""
+    )
+    regeneration_note = regeneration_instruction.strip()
+
+    original_trip = f"""
+Destination: {trip.destination}
+Number of days: {trip.number_of_days}
+Budget: {trip.budget}
+Interests: {trip.interests}
+Travel style: {trip.travel_style}
+Additional preferences: {additional_preferences or "None"}
+""".strip()
+
+    return f"""
+You are a travel planning assistant.
+
+Your task is to MODIFY an existing trip plan based on a user instruction.
+
+IMPORTANT RULES:
+- The regeneration instruction is the HIGHEST PRIORITY
+- You MUST strictly follow it
+- The new plan MUST clearly reflect the requested change
+- If the instruction conflicts with the original plan, IGNORE the original plan
+
+Original trip:
+{original_trip}
+
+User regeneration instruction:
+{regeneration_note}
+
+STRICT REQUIREMENTS:
+- If user asks to make it cheaper:
+  - remove or replace paid attractions
+  - avoid rooftop restaurants and rooftop bars
+  - avoid hammams
+  - avoid cooking classes
+  - avoid premium cruises
+  - avoid expensive tourist landmarks
+  - prefer public ferries, local neighborhoods, markets, parks, mosques, waterfront walks, affordable cafes, and street food
+
+- If user asks for less touristy:
+  - avoid famous landmarks and expensive tourist landmarks
+  - avoid crowded places
+  - focus on local neighborhoods and hidden spots
+
+- If user asks for more relaxed:
+  - reduce number of activities per day
+  - shorten walking distances
+  - include breaks and rest time
+
+- The new itinerary must visibly change to match the instruction.
+- Do not keep expensive or tourist-heavy choices if the instruction asks to remove them.
+- Keep the trip realistic for the same destination and number of days.
+
+Output format:
+- title
+- summary
+- days (day-by-day plan)
+- notes
+
+Additionally:
+In the notes section, briefly explain how the plan was adjusted based on the instruction.
+
+Return JSON only with this structure:
+{{
+  "title": "string",
+  "summary": "string",
+  "days": [
+    {{
+      "day": 1,
+      "plan": "string"
+    }}
+  ],
+  "notes": "string"
+}}
+
+Rules:
+- Return JSON only. Do not add markdown, comments, or extra text.
+- Make sure the "days" list contains exactly {trip.number_of_days} items.
+- Write a short, specific trip title.
+- Write a practical summary that clearly reflects the requested change.
+- For each day, the "plan" string must be clearly organized with these sections in order:
+  Morning: ...
+  Afternoon: ...
+  Evening: ...
+""".strip()
 
 
 def _request_llm_content(
