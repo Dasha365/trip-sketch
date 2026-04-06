@@ -68,7 +68,7 @@ def _build_request_payload(trip: TripRequest, model: str) -> dict[str, Any]:
 
 def _build_prompt(trip: TripRequest) -> str:
     return f"""
-Create a draft travel itinerary as valid JSON.
+Create a realistic travel itinerary as valid JSON.
 
 Trip details:
 - Destination: {trip.destination}
@@ -90,7 +90,21 @@ Return JSON only with this structure:
   "notes": "string"
 }}
 
-Make sure the "days" list contains exactly {trip.number_of_days} items.
+Rules:
+- Return JSON only. Do not add markdown, comments, or extra text.
+- Make sure the "days" list contains exactly {trip.number_of_days} items.
+- Write a short, specific trip title.
+- Write a practical summary that matches the destination, budget, and travel style.
+- Respect the stated budget and avoid suggesting activities that clearly conflict with it.
+- Keep the pace consistent with the travel style.
+- Avoid repeating the same attraction, neighborhood, or activity too often.
+- Make the itinerary realistic for the number of days and avoid impossible travel timing.
+- For each day, the "plan" string must be clearly organized with these sections in order:
+  Morning: ...
+  Afternoon: ...
+  Evening: ...
+- Mention a balanced mix of food, sightseeing, rest, and transport when appropriate.
+- Keep notes concise and helpful. Include practical tips, reservations, or packing advice only when useful.
 """.strip()
 
 
