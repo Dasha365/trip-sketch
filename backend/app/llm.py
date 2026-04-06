@@ -6,7 +6,7 @@ from typing import Any
 import httpx
 from dotenv import load_dotenv
 
-from app.schemas import TripRequest, TripResponse
+from app.schemas import TripRegenerationRequest, TripRequest, TripResponse
 
 
 ENV_FILE = Path(__file__).resolve().parents[2] / ".env"
@@ -49,7 +49,11 @@ def _extract_json_text(content: str) -> str:
     return cleaned_content
 
 
-def _build_request_payload(trip: TripRequest, model: str) -> dict[str, Any]:
+def _build_request_payload(
+    trip: TripRequest,
+    model: str,
+    regeneration_instruction: str | None = None,
+) -> dict[str, Any]:
     return {
         "model": model,
         "messages": [
@@ -60,14 +64,31 @@ def _build_request_payload(trip: TripRequest, model: str) -> dict[str, Any]:
                     "with no extra explanation."
                 ),
             },
-            {"role": "user", "content": _build_prompt(trip)},
+            {
+                "role": "user",
+                "content": _build_prompt(trip, regeneration_instruction),
+            },
         ],
         "temperature": 0.7,
     }
 
 
-def _build_prompt(trip: TripRequest) -> str:
-    return f"""
+def _build_prompt(
+    trip: TripRequest,
+    regeneration_instruction: str | None = None,
+) -> str:
+    additional_preferences = (
+        trip.additional_preferences.strip()
+        if trip.additional_preferences and trip.additional_preferences.strip()
+        else ""
+    )
+    regeneration_note = (
+        regeneration_instruction.strip()
+        if regeneration_instruction and regeneration_instruction.strip()
+        else ""
+    )
+
+    prompt = f"""
 Create a realistic travel itinerary as valid JSON.
 
 Trip details:
@@ -76,6 +97,15 @@ Trip details:
 - Budget: {trip.budget}
 - Interests: {trip.interests}
 - Travel style: {trip.travel_style}
+""".strip()
+
+    if additional_preferences:
+        prompt += f"\n- Additional preferences: {additional_preferences}"
+
+    if regeneration_note:
+        prompt += f"\n- Regeneration instruction: {regeneration_note}"
+
+    prompt += f"""
 
 Return JSON only with this structure:
 {{
@@ -105,10 +135,17 @@ Rules:
   Evening: ...
 - Mention a balanced mix of food, sightseeing, rest, and transport when appropriate.
 - Keep notes concise and helpful. Include practical tips, reservations, or packing advice only when useful.
+- If additional preferences are provided, treat them as user-specific wishes and reflect them where possible.
+- If a regeneration instruction is provided, treat it as a refinement request for a new version of the trip rather than repeating the old one exactly.
 """.strip()
 
+    return prompt
 
-def _request_llm_content(trip: TripRequest) -> str:
+
+def _request_llm_content(
+    trip: TripRequest,
+    regeneration_instruction: str | None = None,
+) -> str:
     api_key = _get_required_env("OPENAI_API_KEY")
     base_url = _get_required_env("OPENAI_BASE_URL")
     model = _get_required_env("OPENAI_MODEL")
@@ -123,7 +160,7 @@ def _request_llm_content(trip: TripRequest) -> str:
             response = client.post(
                 f"{base_url.rstrip('/')}/chat/completions",
                 headers=headers,
-                json=_build_request_payload(trip, model),
+                json=_build_request_payload(trip, model, regeneration_instruction),
             )
             response.raise_for_status()
     except httpx.TimeoutException as exc:
@@ -182,6 +219,14 @@ def _parse_trip_response(content: str) -> TripResponse:
         ) from exc
 
 
-def generate_trip_plan(trip: TripRequest) -> TripResponse:
-    content = _request_llm_content(trip)
+def generate_trip_plan(
+    trip: TripRequest,
+    regeneration: TripRegenerationRequest | None = None,
+) -> TripResponse:
+    regeneration_instruction = None
+
+    if regeneration is not None:
+        regeneration_instruction = regeneration.regeneration_instruction
+
+    content = _request_llm_content(trip, regeneration_instruction)
     return _parse_trip_response(content)

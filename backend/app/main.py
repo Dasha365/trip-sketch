@@ -77,6 +77,7 @@ def read_trip(
 @app.post("/trips/{trip_id}/regenerate", response_model=schemas.TripResponse)
 def regenerate_trip(
     trip_id: int,
+    regeneration: schemas.TripRegenerationRequest | None = None,
     db: Session = Depends(get_db),
 ) -> schemas.TripResponse:
     saved_trip = get_trip_by_id(db, trip_id)
@@ -93,7 +94,7 @@ def regenerate_trip(
     )
 
     try:
-        trip_response = llm.generate_trip_plan(trip_request)
+        trip_response = llm.generate_trip_plan(trip_request, regeneration)
         create_trip(db, trip_request, trip_response)
         return trip_response
     except llm.LLMOutputError as exc:

@@ -16,7 +16,13 @@
         <section class="layout">
             <div class="left-column">
                 <section class="panel">
-                    <h2>Create a Trip</h2>
+                    <div class="panel-header">
+                        <div>
+                            <p class="eyebrow">Trip Planner</p>
+                            <h2>Create a Trip</h2>
+                        </div>
+                        <p class="panel-note">Build a new version in a few fields and keep every result in history.</p>
+                    </div>
                     <form id="trip-form" class="trip-form">
                         <label for="destination">Destination</label>
                         <input type="text" id="destination" name="destination" required>
@@ -33,6 +39,14 @@
                         <label for="travel_style">Travel Style</label>
                         <input type="text" id="travel_style" name="travel_style" placeholder="Relaxed, adventurous, cultural" required>
 
+                        <label for="additional_preferences">Additional Preferences</label>
+                        <textarea
+                            id="additional_preferences"
+                            name="additional_preferences"
+                            rows="4"
+                            placeholder="I prefer less walking&#10;Avoid museums&#10;Add more local food spots&#10;I am traveling with parents"
+                        ></textarea>
+
                         <button id="generate-button" type="submit">Generate Trip</button>
                     </form>
                 </section>
@@ -41,6 +55,7 @@
 
                 <section id="trip-detail-section" class="panel detail-panel">
                     <div id="trip-detail-content" class="empty-state">
+                        <div class="empty-state-icon">TS</div>
                         <h2>Trip Details</h2>
                         <p>Select a saved trip from the history list or generate a new one.</p>
                     </div>

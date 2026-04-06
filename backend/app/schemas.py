@@ -9,6 +9,7 @@ class TripRequest(BaseModel):
     budget: str
     interests: str
     travel_style: str
+    additional_preferences: str | None = None
 
 
 class DayPlan(BaseModel):
@@ -38,3 +39,7 @@ class SavedTripSummary(BaseModel):
 
 class SavedTripDetail(SavedTripSummary):
     days: list[DayPlan]
+
+
+class TripRegenerationRequest(BaseModel):
+    regeneration_instruction: str | None = None

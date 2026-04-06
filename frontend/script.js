@@ -106,9 +106,6 @@ function renderTripDetail(trip) {
                 <h2>${escapeHtml(trip.title)}</h2>
                 <p>${escapeHtml(trip.summary)}</p>
             </div>
-            <button id="regenerate-button" type="button" class="primary-button">
-                Regenerate Trip
-            </button>
         </div>
 
         <div class="detail-meta">
@@ -129,6 +126,18 @@ function renderTripDetail(trip) {
             <h3>Notes</h3>
             <p>${escapeHtml(trip.notes).replace(/\n/g, "<br>")}</p>
         </section>
+
+        <section class="regeneration-box">
+            <h3>What would you like to change?</h3>
+            <p>Optional instructions can guide the next version without changing the saved original trip.</p>
+            <textarea
+                id="regeneration-instruction"
+                placeholder="Make it cheaper&#10;Add more rest time&#10;Focus more on local food&#10;Replace tourist spots with quieter places"
+            ></textarea>
+            <button id="regenerate-button" type="button" class="primary-button">
+                Regenerate Trip
+            </button>
+        </section>
     `;
 
     const regenerateButton = document.getElementById("regenerate-button");
@@ -141,6 +150,7 @@ function renderTripDetail(trip) {
 function renderDetailLoading(message) {
     tripDetailContent.innerHTML = `
         <div class="empty-state">
+            <div class="empty-state-icon">TS</div>
             <h2>Trip Details</h2>
             <p>${escapeHtml(message)}</p>
         </div>
@@ -150,6 +160,7 @@ function renderDetailLoading(message) {
 function renderDetailError(message) {
     tripDetailContent.innerHTML = `
         <div class="empty-state">
+            <div class="empty-state-icon">TS</div>
             <h2>Trip Details</h2>
             <p class="error-text">${escapeHtml(message)}</p>
         </div>
@@ -217,6 +228,7 @@ async function generateTrip(event) {
         budget: formData.get("budget"),
         interests: formData.get("interests"),
         travel_style: formData.get("travel_style"),
+        additional_preferences: formData.get("additional_preferences")?.trim() || null,
     };
 
     try {
@@ -250,9 +262,20 @@ async function regenerateTrip(tripId) {
     setButtonsDisabled(true);
     renderDetailLoading("Regenerating this trip...");
 
+    const regenerationInstructionField = document.getElementById("regeneration-instruction");
+    const regenerationInstruction = regenerationInstructionField
+        ? regenerationInstructionField.value.trim()
+        : "";
+
     try {
         const response = await fetch(`${API_BASE_URL}/trips/${tripId}/regenerate`, {
             method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                regeneration_instruction: regenerationInstruction || null,
+            }),
         });
 
         await parseResponse(response);
