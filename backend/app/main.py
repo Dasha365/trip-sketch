@@ -92,9 +92,14 @@ def regenerate_trip(
         interests=saved_trip.interests,
         travel_style=saved_trip.travel_style,
     )
+    current_trip = build_saved_trip_detail(saved_trip)
 
     try:
-        trip_response = llm.generate_trip_plan(trip_request, regeneration)
+        trip_response = llm.generate_trip_plan(
+            trip_request,
+            regeneration,
+            current_trip=current_trip,
+        )
         create_trip(db, trip_request, trip_response)
         return trip_response
     except llm.LLMOutputError as exc:
