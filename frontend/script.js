@@ -65,37 +65,36 @@ function splitPlanIntoSegments(plan) {
         return [];
     }
 
-    const lines = text
-        .split(/\n+/)
-        .map((line) => line.trim())
-        .filter(Boolean);
+    const normalizedText = text.replace(/\r\n/g, "\n");
+    const sectionPattern = /(Morning|Afternoon|Evening)\s*:\s*/gi;
+    const matches = [...normalizedText.matchAll(sectionPattern)];
 
-    const sectionMatches = [
-        { label: "Morning", pattern: /morning/i },
-        { label: "Afternoon", pattern: /afternoon/i },
-        { label: "Evening", pattern: /evening/i },
-    ];
+    if (matches.length === 0) {
+        return [];
+    }
 
-    const foundSections = sectionMatches
-        .map((section) => {
-            const matchedLine = lines.find((line) => section.pattern.test(line));
-            return matchedLine
-                ? {
-                      label: section.label,
-                      content: matchedLine.replace(/^.*?:\s*/, "").trim() || matchedLine,
-                  }
-                : null;
+    const sections = matches
+        .map((match, index) => {
+            const label = match[1];
+            const contentStart = match.index + match[0].length;
+            const contentEnd = index + 1 < matches.length ? matches[index + 1].index : normalizedText.length;
+            const content = normalizedText.slice(contentStart, contentEnd).trim();
+
+            if (!content) {
+                return null;
+            }
+
+            return {
+                label: label.charAt(0).toUpperCase() + label.slice(1).toLowerCase(),
+                content,
+            };
         })
         .filter(Boolean);
 
-    if (foundSections.length > 0) {
-        return foundSections;
-    }
+    const uniqueLabels = new Set(sections.map((section) => section.label));
+    const hasStructuredSections = sections.length > 0 && uniqueLabels.size === sections.length;
 
-    return lines.map((line, index) => ({
-        label: index === 0 ? "Highlights" : `Plan ${index + 1}`,
-        content: line,
-    }));
+    return hasStructuredSections ? sections : [];
 }
 
 function renderDayCards(days) {
