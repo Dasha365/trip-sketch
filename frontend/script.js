@@ -49,26 +49,146 @@ function setButtonsDisabled(disabled) {
     }
 }
 
+function createMetaPill(label, value) {
+    return `
+        <div class="meta-pill">
+            <span class="meta-pill-label">${escapeHtml(label)}</span>
+            <span>${escapeHtml(value)}</span>
+        </div>
+    `;
+}
+
+function splitPlanIntoSegments(plan) {
+    const text = String(plan ?? "").trim();
+
+    if (!text) {
+        return [];
+    }
+
+    const lines = text
+        .split(/\n+/)
+        .map((line) => line.trim())
+        .filter(Boolean);
+
+    const sectionMatches = [
+        { label: "Morning", pattern: /morning/i },
+        { label: "Afternoon", pattern: /afternoon/i },
+        { label: "Evening", pattern: /evening/i },
+    ];
+
+    const foundSections = sectionMatches
+        .map((section) => {
+            const matchedLine = lines.find((line) => section.pattern.test(line));
+            return matchedLine
+                ? {
+                      label: section.label,
+                      content: matchedLine.replace(/^.*?:\s*/, "").trim() || matchedLine,
+                  }
+                : null;
+        })
+        .filter(Boolean);
+
+    if (foundSections.length > 0) {
+        return foundSections;
+    }
+
+    return lines.map((line, index) => ({
+        label: index === 0 ? "Highlights" : `Plan ${index + 1}`,
+        content: line,
+    }));
+}
+
+function renderDayCards(days) {
+    if (!Array.isArray(days) || days.length === 0) {
+        return `
+            <div class="empty-state">
+                <div class="empty-illustration">
+                    <span class="empty-illustration-core">TS</span>
+                </div>
+                <h3>No daily plan yet</h3>
+                <p>This trip was saved without a detailed itinerary, so there are no day cards to show right now.</p>
+            </div>
+        `;
+    }
+
+    return `
+        <div class="timeline">
+            ${days
+                .map((day) => {
+                    const sections = splitPlanIntoSegments(day.plan);
+                    const sectionMarkup = sections
+                        .map(
+                            (section) => `
+                                <div class="plan-block">
+                                    <strong>${escapeHtml(section.label)}</strong>
+                                    <p>${escapeHtml(section.content).replace(/\n/g, "<br>")}</p>
+                                </div>
+                            `
+                        )
+                        .join("");
+
+                    const fallbackMarkup = !sectionMarkup
+                        ? `
+                            <div class="plan-block">
+                                <strong>Day Plan</strong>
+                                <p>${escapeHtml(day.plan || "No details available.").replace(/\n/g, "<br>")}</p>
+                            </div>
+                        `
+                        : sectionMarkup;
+
+                    return `
+                        <article class="day-card">
+                            <div class="day-card-header">
+                                <div class="day-badge">Day ${escapeHtml(day.day)}</div>
+                                <div>
+                                    <h3 class="day-card-title">Day ${escapeHtml(day.day)}</h3>
+                                    <p class="day-card-subtitle">A structured view of the itinerary for this day.</p>
+                                </div>
+                            </div>
+                            <div class="day-sections">
+                                ${fallbackMarkup}
+                            </div>
+                        </article>
+                    `;
+                })
+                .join("")}
+        </div>
+    `;
+}
+
 function renderHistory(trips) {
     if (!Array.isArray(trips) || trips.length === 0) {
-        tripHistory.innerHTML = "";
-        historyStatus.textContent = "No saved trips yet.";
+        tripHistory.innerHTML = `
+            <div class="empty-state">
+                <div class="empty-illustration">
+                    <span class="empty-illustration-core">TS</span>
+                </div>
+                <h3>No saved trips yet</h3>
+                <p>Your generated itineraries will appear here so you can revisit and compare every version.</p>
+            </div>
+        `;
+        historyStatus.textContent = "History is empty for now.";
         return;
     }
 
-    historyStatus.textContent = `${trips.length} saved trip${trips.length === 1 ? "" : "s"}.`;
+    historyStatus.textContent = `${trips.length} saved trip${trips.length === 1 ? "" : "s"} ready to revisit.`;
 
     tripHistory.innerHTML = trips
         .map(
-            (trip) => `
+            (trip, index) => `
                 <button
                     type="button"
                     class="history-item ${trip.id === selectedTripId ? "active" : ""}"
                     data-trip-id="${trip.id}"
                 >
-                    <h3>${escapeHtml(trip.title)}</h3>
-                    <p><strong>Destination:</strong> ${escapeHtml(trip.destination)}</p>
-                    <p><strong>Created:</strong> ${escapeHtml(formatCreatedAt(trip.created_at))}</p>
+                    <div class="history-item-header">
+                        <div>
+                            <h3>${escapeHtml(trip.title)}</h3>
+                            <p class="history-destination">${escapeHtml(trip.destination)}</p>
+                        </div>
+                        <span class="history-chip">${index === 0 ? "Latest" : "Saved"}</span>
+                    </div>
+                    <p class="history-created">Created ${escapeHtml(formatCreatedAt(trip.created_at))}</p>
                 </button>
             `
         )
@@ -87,57 +207,62 @@ function renderHistory(trips) {
 function renderTripDetail(trip) {
     selectedTripId = trip.id;
 
-    const daysHtml = Array.isArray(trip.days)
-        ? trip.days
-              .map(
-                  (day) => `
-                      <article class="day-card">
-                          <h3>Day ${escapeHtml(day.day)}</h3>
-                          <p>${escapeHtml(day.plan).replace(/\n/g, "<br>")}</p>
-                      </article>
-                  `
-              )
-              .join("")
-        : "";
+    const detailMeta = [
+        createMetaPill("Destination", trip.destination),
+        createMetaPill("Duration", `${trip.number_of_days} day${trip.number_of_days === 1 ? "" : "s"}`),
+        createMetaPill("Budget", trip.budget),
+        createMetaPill("Interests", trip.interests),
+        createMetaPill("Style", trip.travel_style),
+    ].join("");
+
+    const notesText = escapeHtml(trip.notes || "No additional notes were saved for this itinerary.").replace(/\n/g, "<br>");
 
     tripDetailContent.innerHTML = `
-        <div class="detail-header">
-            <div>
-                <h2>${escapeHtml(trip.title)}</h2>
-                <p>${escapeHtml(trip.summary)}</p>
-            </div>
+        <div class="detail-shell">
+            <section class="detail-hero">
+                <div class="detail-headline">
+                    <div>
+                        <span class="detail-kicker">Saved Itinerary</span>
+                        <h3 class="detail-title">${escapeHtml(trip.title)}</h3>
+                        <p class="detail-summary">${escapeHtml(trip.summary || "No summary was provided for this trip.")}</p>
+                    </div>
+                    <div class="detail-timestamp">${escapeHtml(formatCreatedAt(trip.created_at))}</div>
+                </div>
+
+                <div class="detail-meta">
+                    ${detailMeta}
+                </div>
+            </section>
+
+            <section>
+                <h3 class="detail-section-title">
+                    <span class="section-symbol">*</span>
+                    Daily Plan
+                </h3>
+                ${renderDayCards(trip.days)}
+            </section>
+
+            <section class="notes-box">
+                <h3>Notes</h3>
+                <p>${notesText}</p>
+            </section>
+
+            <section class="regeneration-box">
+                <h3>Refine This Trip</h3>
+                <p>Leave optional instructions to generate a fresh saved version without overwriting the current itinerary.</p>
+                <textarea
+                    id="regeneration-instruction"
+                    rows="5"
+                    placeholder="Make it cheaper&#10;Add more rest time&#10;Focus more on local food&#10;Replace tourist spots with quieter places"
+                ></textarea>
+                <div class="regeneration-actions">
+                    <span class="regeneration-tip">Short prompts work well: budget changes, pacing, food focus, or quieter alternatives.</span>
+                    <button id="regenerate-button" type="button" class="primary-button">
+                        Regenerate Trip
+                    </button>
+                </div>
+            </section>
         </div>
-
-        <div class="detail-meta">
-            <div class="meta-pill">${escapeHtml(trip.destination)}</div>
-            <div class="meta-pill">${escapeHtml(trip.number_of_days)} day${trip.number_of_days === 1 ? "" : "s"}</div>
-            <div class="meta-pill">${escapeHtml(trip.budget)}</div>
-            <div class="meta-pill">${escapeHtml(trip.interests)}</div>
-            <div class="meta-pill">${escapeHtml(trip.travel_style)}</div>
-            <div class="meta-pill">${escapeHtml(formatCreatedAt(trip.created_at))}</div>
-        </div>
-
-        <section>
-            <h3>Daily Plan</h3>
-            ${daysHtml || "<p>No day plan could be loaded for this trip.</p>"}
-        </section>
-
-        <section class="notes-box">
-            <h3>Notes</h3>
-            <p>${escapeHtml(trip.notes).replace(/\n/g, "<br>")}</p>
-        </section>
-
-        <section class="regeneration-box">
-            <h3>What would you like to change?</h3>
-            <p>Optional instructions can guide the next version without changing the saved original trip.</p>
-            <textarea
-                id="regeneration-instruction"
-                placeholder="Make it cheaper&#10;Add more rest time&#10;Focus more on local food&#10;Replace tourist spots with quieter places"
-            ></textarea>
-            <button id="regenerate-button" type="button" class="primary-button">
-                Regenerate Trip
-            </button>
-        </section>
     `;
 
     const regenerateButton = document.getElementById("regenerate-button");
@@ -149,10 +274,15 @@ function renderTripDetail(trip) {
 
 function renderDetailLoading(message) {
     tripDetailContent.innerHTML = `
-        <div class="empty-state">
-            <div class="empty-state-icon">TS</div>
-            <h2>Trip Details</h2>
-            <p>${escapeHtml(message)}</p>
+        <div class="detail-loading">
+            <div class="loading-card">
+                <div class="shimmer shimmer-line short"></div>
+                <div class="shimmer shimmer-hero"></div>
+                <div class="shimmer shimmer-line long"></div>
+                <div class="shimmer shimmer-line medium"></div>
+                <div class="shimmer shimmer-line long"></div>
+                <p>${escapeHtml(message)}</p>
+            </div>
         </div>
     `;
 }
@@ -160,8 +290,10 @@ function renderDetailLoading(message) {
 function renderDetailError(message) {
     tripDetailContent.innerHTML = `
         <div class="empty-state">
-            <div class="empty-state-icon">TS</div>
-            <h2>Trip Details</h2>
+            <div class="empty-illustration">
+                <span class="empty-illustration-core">TS</span>
+            </div>
+            <h3>Unable to load this trip</h3>
             <p class="error-text">${escapeHtml(message)}</p>
         </div>
     `;
@@ -206,7 +338,15 @@ async function refreshHistory() {
     try {
         return await fetchTripHistory();
     } catch (error) {
-        tripHistory.innerHTML = "";
+        tripHistory.innerHTML = `
+            <div class="empty-state">
+                <div class="empty-illustration">
+                    <span class="empty-illustration-core">TS</span>
+                </div>
+                <h3>History is unavailable</h3>
+                <p>We could not load the saved trips right now. Try refreshing again in a moment.</p>
+            </div>
+        `;
         historyStatus.textContent = "Could not load trip history.";
         showMessage(error.message || "Could not load trip history.", "error");
         return [];
